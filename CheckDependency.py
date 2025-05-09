@@ -34,13 +34,13 @@ for pkg_key, pkg_line in base_packages.items():
 subprocess.run(["pip", "install", "--quiet", "pipdeptree"], check=True)
 
 # Step 4: Get the full dependency tree as JSON
-result = subprocess.run(["pipdeptree", "--json"], capture_output=True, text=True)
+result = subprocess.run(["pipdeptree", "--json", "--all"], capture_output=True, text=True)
 data = json.loads(result.stdout)
 
 # Step 5: Build a map: {parent_pkg: [dep_name, dep_name, ...]}
 tree_map = {}
 pkg_versions = {}
-all_dependencies_set = set()  # 👈 新增：记录所有被依赖的包
+all_dependencies_set = set() 
 
 for item in data:
     parent = item["package"]["key"]
@@ -50,7 +50,7 @@ for item in data:
     for dep in item.get("dependencies", []):
         dep_name = dep["key"]
         deps.append(dep_name)
-        all_dependencies_set.add(dep_name)  # 👈 记录到依赖包集合
+        all_dependencies_set.add(dep_name)  
     tree_map[parent] = deps
 
 # Recursive dependency collector
@@ -67,19 +67,21 @@ def get_all_dependencies(pkg_key, tree_map, visited=None):
         deps.extend(get_all_dependencies(dep, tree_map, visited))
     return deps
 
-# Step 6: Collect full dependencies for each base package (only top-level packages)
-rows = []
-for base in base_packages:
-    if base in all_dependencies_set:
-        print(f"ℹ️ Skipping {base} because it's a dependency of another package.")
-        continue
+# Step 6: Filter base packages that are not depended by others
+all_depended_packages = set()
+for deps in tree_map.values():
+    all_depended_packages.update(deps)
 
-    version = pkg_versions.get(base, "")
+# Only keep base packages that are not depended by others
+pure_base_packages = [pkg for pkg in base_packages if pkg not in all_depended_packages]
+
+# Collect full dependencies for each remaining pure base package (no version info)
+rows = []
+for base in pure_base_packages:
     full_deps = get_all_dependencies(base, tree_map)
     unique_deps = sorted(set(full_deps))
     row = {
         "Base Package": base,
-        "Base Version": version,
     }
     for idx, dep in enumerate(unique_deps, start=1):
         row[f"dependsBy{idx}"] = dep
