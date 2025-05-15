@@ -30,10 +30,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run weekly report script
-        run: |
-          python GenerateWeeklyReport.py
+        run: python GenerateWeeklyReport.py
 
-            - name: Commit and push generated report
+      - name: Commit and push generated report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -41,3 +40,4 @@ jobs:
           git add WeeklyReport/*
           git commit -m "📝 Auto-update weekly vulnerability report on $(date '+%Y-%m-%d %H:%M')" || echo "No changes to commit"
           git push origin HEAD:${{ github.ref_name }}
+
