@@ -21,21 +21,35 @@ import os
 from datetime import datetime, timedelta
 import asyncio
 import aiohttp
-import importlib.util
 import time
+from dotenv import load_dotenv
+import shlex
 
 # ---------------- Configuration ----------------
-# Constants
-FULL_RELOAD_PACKAGES = False
-BASE_PACKAGE_TXT = 'base_package_list.txt'
-BASE_PACKAGE_CSV = 'BasePackageWithDependencies.csv'
-CHECK_DEPENDENCY_SCRIPT = 'CheckDependency.py'
-REQUIREMENTS_FILE = 'requirements_full_list.txt'
-PIP_AUDIT_CMD = ['pip-audit', '--format', 'json']
-PYPI_URL_TEMPLATE = 'https://pypi.org/pypi/{package}/json'
-BASE_PACKAGE_LIST = 'base_package_list.txt'
-semaphore_number = 3
-failed_versions = []
+# Constants (Moved to .env)
+# FULL_RELOAD_PACKAGES = False
+# BASE_PACKAGE_TXT = 'base_package_list.txt'
+# BASE_PACKAGE_CSV = 'BasePackageWithDependencies.csv'
+# CHECK_DEPENDENCY_SCRIPT = 'CheckDependency.py'
+# REQUIREMENTS_FILE = 'requirements_full_list.txt'
+# PIP_AUDIT_CMD = ['pip-audit', '--format', 'json']
+# PYPI_URL_TEMPLATE = 'https://pypi.org/pypi/{package}/json'
+# BASE_PACKAGE_LIST = 'base_package_list.txt'
+# semaphore_number = 3
+# failed_versions = []
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=".env")
+
+FULL_RELOAD_PACKAGES = os.getenv("FULL_RELOAD_PACKAGES", "False").lower() == "true"
+BASE_PACKAGE_TXT = os.getenv("BASE_PACKAGE_TXT", "base_package_list.txt")
+BASE_PACKAGE_CSV = os.getenv("BASE_PACKAGE_CSV", "BasePackageWithDependencies.csv")
+CHECK_DEPENDENCY_SCRIPT = os.getenv("CHECK_DEPENDENCY_SCRIPT", "CheckDependency.py")
+REQUIREMENTS_FILE = os.getenv("REQUIREMENTS_FILE", "requirements_full_list.txt")
+PIP_AUDIT_CMD = shlex.split(os.getenv("PIP_AUDIT_CMD", "pip-audit --format json"))
+PYPI_URL_TEMPLATE = os.getenv("PYPI_URL_TEMPLATE", "https://pypi.org/pypi/{package}/json")
+BASE_PACKAGE_LIST = os.getenv("BASE_PACKAGE_LIST", "base_package_list.txt")
+semaphore_number = int(os.getenv("SEMAPHORE_NUMBER", 3))
 
 # Timezone support for UTC+8 (Singapore)
 from datetime import datetime
@@ -151,7 +165,7 @@ def load_base_packages() -> set:
     """
     base_set = set()
     try:
-        if USE_CSV_FOR_BASE_PACKAGES:
+        if FULL_RELOAD_PACKAGES:
             # Regenerate CSV before loading
             run_py(CHECK_DEPENDENCY_SCRIPT)
 
