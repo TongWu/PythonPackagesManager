@@ -4,3 +4,6 @@ requests
 packaging
 jinja2 
 python-dotenv
+pandas
+pipdeptree
+setuptools
