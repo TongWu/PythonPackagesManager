@@ -31,6 +31,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          
+      - name: [Debug] Print selected env vars
+        run: |
+          echo "FULL_RELOAD_PACKAGES=${{ env.FULL_RELOAD_PACKAGES }}"
+          echo "BASE_PACKAGE_CSV=${{ env.BASE_PACKAGE_CSV }}"
+          echo "REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }}"
 
       - name: Run weekly report script
         run: python GenerateWeeklyReport.py
