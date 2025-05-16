@@ -24,6 +24,7 @@ import aiohttp
 import time
 from dotenv import load_dotenv
 import shlex
+import subprocess
 
 # ---------------- Configuration ----------------
 # Constants (Moved to .env)
@@ -128,33 +129,35 @@ def get_report_paths() -> dict:
 
 def run_py(script_path: str):
     """
-    Dynamically execute a Python script and log stdout, stderr, and runtime.
-
-    Args:
-        script_path (str): Path to the script to execute.
+    Run a Python script and stream its stdout/stderr line-by-line with timestamped logs.
     """
+    logger.info(f"Running {script_path}...")
+    start_time = time.time()
+
+    process = subprocess.Popen(
+        ["python3", script_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1  # line-buffered
+    )
+
     try:
-        logger.info(f"Running {script_path}...")
-        start_time = time.time()
+        # Stream output line-by-line
+        assert process.stdout is not None
+        for line in process.stdout:
+            logger.info(f"[{script_path}] {line.rstrip()}")
 
-        result = subprocess.run(
-            ["python3", script_path],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-
+        process.wait()
         duration = time.time() - start_time
-        logger.info(f"{script_path} stdout:\n{result.stdout.strip()}")
-        if result.stderr.strip():
-            logger.warning(f"{script_path} stderr:\n{result.stderr.strip()}")
-        logger.info(f"{script_path} executed successfully in {duration:.2f} seconds.")
-    except subprocess.CalledProcessError as e:
-        duration = time.time() - start_time
-        logger.error(f"{script_path} failed in {duration:.2f} seconds with return code {e.returncode}")
-        logger.error(f"{script_path} stdout:\n{e.stdout.strip()}")
-        logger.error(f"{script_path} stderr:\n{e.stderr.strip()}")
 
+        if process.returncode == 0:
+            logger.info(f"{script_path} executed successfully in {duration:.2f} seconds.")
+        else:
+            logger.error(f"{script_path} failed in {duration:.2f} seconds with return code {process.returncode}")
+
+    except Exception as e:
+        logger.exception(f"Exception occurred while running {script_path}: {e}")
 
 def load_base_packages() -> set:
     """
