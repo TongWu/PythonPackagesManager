@@ -37,7 +37,6 @@ import subprocess
 # PYPI_URL_TEMPLATE = 'https://pypi.org/pypi/{package}/json'
 # BASE_PACKAGE_LIST = 'base_package_list.txt'
 # semaphore_number = 3
-# failed_versions = []
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=".env")
@@ -51,6 +50,7 @@ PIP_AUDIT_CMD = shlex.split(os.getenv("PIP_AUDIT_CMD", "pip-audit --format json"
 PYPI_URL_TEMPLATE = os.getenv("PYPI_URL_TEMPLATE", "https://pypi.org/pypi/{package}/json")
 BASE_PACKAGE_LIST = os.getenv("BASE_PACKAGE_LIST", "base_package_list.txt")
 semaphore_number = int(os.getenv("SEMAPHORE_NUMBER", 3))
+failed_versions = []
 
 # Timezone support for UTC+8 (Singapore)
 from datetime import datetime
@@ -579,6 +579,20 @@ def main() -> None:
             logger.warning(f"⚠️ {len(failed_versions)} package versions failed vulnerability check. Saved to failed_versions.txt")
         except Exception as e:
             print(f"❌ Failed to write failed packages list: {e}")
+    
+    # Summary logging
+    total = len(rows)
+    base_count = sum(1 for r in rows if r['Package Type'] == 'Base Package')
+    dep_count = total - base_count
+
+    base_vuln = sum(1 for r in rows if r['Package Type'] == 'Base Package' and r['Current Version Vulnerable?'] == 'Yes')
+    dep_vuln = sum(1 for r in rows if r['Package Type'] == 'Dependency Package' and r['Current Version Vulnerable?'] == 'Yes')
+
+    logger.info("📦 Weekly Report Summary")
+    logger.info(f"🔍 Total packages scanned: {total} (Base: {base_count}, Dependency: {dep_count})")
+    logger.info(f"🚨 Vulnerabilities found in current versions:")
+    logger.info(f"   • Base packages: {base_vuln} / {base_count}")
+    logger.info(f"   • Dependency packages: {dep_vuln} / {dep_count}")
 
 if __name__ == '__main__':
     main()
