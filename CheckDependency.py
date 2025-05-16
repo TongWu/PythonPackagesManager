@@ -35,7 +35,7 @@ logger.addHandler(handler)
 logger.propagate = False  # Avoid duplicate logs from root logger
 
 # ---------------- Logging Configuration with SGT timezone ----------------
-requirements_file = "/workspaces/mend_scan_template/requirements_full_list.txt"
+requirements_file = "requirements_full_list.txt"
 logger.info(f"Reading base packages from {requirements_file}")
 
 # Step 1: Load base package list and save original line
