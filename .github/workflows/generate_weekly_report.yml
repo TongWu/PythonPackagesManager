@@ -29,8 +29,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip setuptools wheel
+          pip install --force-reinstall --upgrade pip
+          pip install -r requirements.txt --no-cache-dir
+
+      - name: DEBUG - Check pip health
+        run: |
+          pip --version
+          python -c "import pip._vendor.resolvelib; print(pip._vendor.resolvelib.__file__)"
           
       - name: DEBUG - Print config.env values
         run: |
