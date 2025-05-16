@@ -5,4 +5,5 @@ packaging
 jinja2 
 python-dotenv
 pandas
-pkg_resources
+pipdeptree
+setuptools
