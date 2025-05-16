@@ -3,3 +3,4 @@ aiohttp
 requests
 packaging
 jinja2 
+python-dotenv
