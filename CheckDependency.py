@@ -3,10 +3,42 @@ import pkg_resources
 import subprocess
 import json
 import pandas as pd
+import logging
 
+# ---------------- Logging Configuration ----------------
+from logging import Formatter, StreamHandler
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except ImportError:
+    from pytz import timezone as ZoneInfo  # fallback for Python <3.9
+
+SG_TZ = ZoneInfo("Asia/Singapore")
+
+class SGTFormatter(Formatter):
+    """
+    Custom logging formatter that outputs timestamps in Asia/Singapore timezone.
+    """
+    def formatTime(self, record, datefmt=None):
+        ct = datetime.fromtimestamp(record.created, SG_TZ)
+        if datefmt:
+            return ct.strftime(datefmt)
+        return ct.isoformat()
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = StreamHandler()
+formatter = SGTFormatter(fmt='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.propagate = False  # Avoid duplicate logs from root logger
+
+# ---------------- Logging Configuration with SGT timezone ----------------
 requirements_file = "/workspaces/mend_scan_template/requirements_full_list.txt"
+logger.info(f"Reading base packages from {requirements_file}")
+
 # Step 1: Load base package list and save original line
-base_packages = {}  # {pkg_key: original_line}
+base_packages = {}
 with open(requirements_file) as f:
     for line in f:
         line = line.strip()
@@ -17,30 +49,37 @@ with open(requirements_file) as f:
             pkg_key = pkg_resources.Requirement.parse(pkg_name).key
         except Exception:
             pkg_key = pkg_name.lower()
-        base_packages[pkg_key] = line 
+        base_packages[pkg_key] = line
+
+logger.info(f"Found {len(base_packages)} base packages.")
 
 # Step 2: Install all packages one by one (ignore dependency conflicts, skip failures)
-for pkg_key, pkg_line in base_packages.items():
-    print(f"⬇️ Installing: {pkg_line}")
-    result = subprocess.run([
-        "pip", "install", "--no-deps", "--ignore-installed", pkg_line
-    ], capture_output=True, text=True)
+total_pkgs = len(base_packages)
+for idx, (pkg_key, pkg_line) in enumerate(base_packages.items(), 1):
+    logger.info(f"[{idx}/{total_pkgs}] ⬇️ Installing: {pkg_line}")
+    result = subprocess.run(
+        ["pip", "install", "--no-deps", "--ignore-installed", pkg_line],
+        capture_output=True, text=True
+    )
     if result.returncode != 0:
-        print(f"⚠️ Failed to install {pkg_line}. Skipping.\nError: {result.stderr}")
+        logger.warning(f"[{idx}/{total_pkgs}] ⚠️ Failed to install {pkg_line}. Skipping.\n{result.stderr.strip()}")
     else:
-        print(f"✅ Installed: {pkg_line}")
+        logger.info(f"[{idx}/{total_pkgs}] ✅ Installed: {pkg_line}")
 
 # Step 3: Ensure pipdeptree is installed
+logger.info("Installing pipdeptree...")
 subprocess.run(["pip", "install", "--quiet", "pipdeptree"], check=True)
 
-# Step 4: Get the full dependency tree as JSON
+# Step 4: Get full dependency tree
+logger.info("Extracting dependency tree via pipdeptree...")
 result = subprocess.run(["pipdeptree", "--json", "--all"], capture_output=True, text=True)
 data = json.loads(result.stdout)
 
-# Step 5: Build a map: {parent_pkg: [dep_name, dep_name, ...]}
+# Step 5: Parse tree into map
+logger.info("Parsing dependency tree...")
 tree_map = {}
 pkg_versions = {}
-all_dependencies_set = set() 
+all_dependencies_set = set()
 
 for item in data:
     parent = item["package"]["key"]
@@ -50,10 +89,19 @@ for item in data:
     for dep in item.get("dependencies", []):
         dep_name = dep["key"]
         deps.append(dep_name)
-        all_dependencies_set.add(dep_name)  
+        all_dependencies_set.add(dep_name)
     tree_map[parent] = deps
 
-# Recursive dependency collector
+# Step 6: Identify pure base packages
+logger.info("Filtering pure base packages...")
+all_depended_packages = set()
+for deps in tree_map.values():
+    all_depended_packages.update(deps)
+
+pure_base_packages = [pkg for pkg in base_packages if pkg not in all_depended_packages]
+logger.info(f"Found {len(pure_base_packages)} pure base packages.")
+
+# Recursive function to get full dependency chain
 def get_all_dependencies(pkg_key, tree_map, visited=None):
     if visited is None:
         visited = set()
@@ -67,15 +115,8 @@ def get_all_dependencies(pkg_key, tree_map, visited=None):
         deps.extend(get_all_dependencies(dep, tree_map, visited))
     return deps
 
-# Step 6: Filter base packages that are not depended by others
-all_depended_packages = set()
-for deps in tree_map.values():
-    all_depended_packages.update(deps)
-
-# Only keep base packages that are not depended by others
-pure_base_packages = [pkg for pkg in base_packages if pkg not in all_depended_packages]
-
-# Collect full dependencies for each remaining pure base package (no version info)
+# Step 7: Collect dependencies for each base package
+logger.info("Building full dependency map...")
 rows = []
 for base in pure_base_packages:
     full_deps = get_all_dependencies(base, tree_map)
@@ -87,8 +128,8 @@ for base in pure_base_packages:
         row[f"dependsBy{idx}"] = dep
     rows.append(row)
 
-# Step 7: Save to CSV
+# Step 8: Export to CSV
 df = pd.DataFrame(rows)
-df.to_csv("TRM_base_packages_with_dependencies.csv", index=False)
-print("✅ Exported to TRM_base_packages_with_dependencies.csv")
-print(df)
+df.to_csv("BasePackageWithDependencies.csv", index=False)
+logger.info("✅ Exported to BasePackageWithDependencies.csv")
+# logger.info(f"\n{df}")

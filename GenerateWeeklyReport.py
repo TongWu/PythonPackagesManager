@@ -21,9 +21,15 @@ import os
 from datetime import datetime, timedelta
 import asyncio
 import aiohttp
+import importlib.util
+import time
 
 # ---------------- Configuration ----------------
 # Constants
+FULL_RELOAD_PACKAGES = False
+BASE_PACKAGE_TXT = 'base_package_list.txt'
+BASE_PACKAGE_CSV = 'BasePackageWithDependencies.csv'
+CHECK_DEPENDENCY_SCRIPT = 'CheckDependency.py'
 REQUIREMENTS_FILE = 'requirements_full_list.txt'
 PIP_AUDIT_CMD = ['pip-audit', '--format', 'json']
 PYPI_URL_TEMPLATE = 'https://pypi.org/pypi/{package}/json'
@@ -106,26 +112,63 @@ def get_report_paths() -> dict:
         "failed": os.path.join(output_dir, f"FailedVersions_{timestamp_sg}.txt")
     }
 
-def load_base_packages(txt_file: str = 'base_package_list.txt') -> set:
+def run_py(script_path: str):
     """
-    Load the base packages list from a text file.
-
-    Each line in the file should contain a package name.
+    Dynamically execute a Python script and log stdout, stderr, and runtime.
 
     Args:
-        txt_file (str): Path to the base package list file.
+        script_path (str): Path to the script to execute.
+    """
+    try:
+        logger.info(f"Running {script_path}...")
+        start_time = time.time()
+
+        result = subprocess.run(
+            ["python3", script_path],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        duration = time.time() - start_time
+        logger.info(f"{script_path} stdout:\n{result.stdout.strip()}")
+        if result.stderr.strip():
+            logger.warning(f"{script_path} stderr:\n{result.stderr.strip()}")
+        logger.info(f"{script_path} executed successfully in {duration:.2f} seconds.")
+    except subprocess.CalledProcessError as e:
+        duration = time.time() - start_time
+        logger.error(f"{script_path} failed in {duration:.2f} seconds with return code {e.returncode}")
+        logger.error(f"{script_path} stdout:\n{e.stdout.strip()}")
+        logger.error(f"{script_path} stderr:\n{e.stderr.strip()}")
+
+
+def load_base_packages() -> set:
+    """
+    Load base packages from either a CSV or a TXT file based on global setting.
 
     Returns:
         set: Set of lowercase package names classified as base packages.
     """
     base_set = set()
     try:
-        with open(txt_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    base_set.add(line.lower())
-        logger.info(f"Loaded {len(base_set)} base packages from {txt_file}")
+        if USE_CSV_FOR_BASE_PACKAGES:
+            # Regenerate CSV before loading
+            run_py(CHECK_DEPENDENCY_SCRIPT)
+
+            with open(BASE_PACKAGE_CSV, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    base_pkg = row.get("Base Package", "").strip()
+                    if base_pkg:
+                        base_set.add(base_pkg.lower())
+            logger.info(f"Loaded {len(base_set)} base packages from {BASE_PACKAGE_CSV}")
+        else:
+            with open(BASE_PACKAGE_TXT, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        base_set.add(line.lower())
+            logger.info(f"Loaded {len(base_set)} base packages from {BASE_PACKAGE_TXT}")
     except Exception as e:
         logger.warning(f"Failed to load base package list: {e}")
     return base_set
@@ -373,7 +416,7 @@ async def fetch_osv(session: aiohttp.ClientSession, package: str, ver: str,
 
 def main() -> None:
     """
-    Main entry point for vulnerability scanning workflow.
+    Main entry point for generate weekly report workflow.
 
     - Parses the requirements file.
     - Fetches metadata and known vulnerabilities.
@@ -391,6 +434,7 @@ def main() -> None:
     OUTPUT_JSON = paths["json"]
     OUTPUT_FAILED = paths["failed"]
 
+    # Load base package list
     base_packages = load_base_packages()
 
     parser = argparse.ArgumentParser(description="Dependency vulnerability scanner")
@@ -425,7 +469,7 @@ def main() -> None:
                 for entry in release_info:
                     if 'requires_dist' in entry:
                         cur_ver_deps.extend(entry['requires_dist'])
-                        break  # use the first one
+                        break
             if not cur_ver_deps:
                 cur_ver_deps = info.get('info', {}).get('requires_dist') or []
 
@@ -470,7 +514,7 @@ def main() -> None:
             'Upgrade Vulnerability Details': upgrade_vuln_details
         })
 
-    # 3. write output
+    # write output
     fieldnames = list(rows[0].keys()) if rows else []
     output_set = set(args.output)
     if 'all' in output_set:
