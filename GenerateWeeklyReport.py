@@ -166,7 +166,8 @@ def load_base_packages() -> set:
     base_set = set()
     try:
         if FULL_RELOAD_PACKAGES:
-            # Regenerate CSV before loading
+            logger.warning(f"FULL RELOAD PYTHON PACKAGES, CALLING {CHECK_DEPENDENCY_SCRIPT}")
+            # Regenerate Base Packages Dependencies before loading
             run_py(CHECK_DEPENDENCY_SCRIPT)
 
             with open(BASE_PACKAGE_CSV, 'r', encoding='utf-8') as f:
