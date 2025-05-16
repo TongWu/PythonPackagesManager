@@ -32,11 +32,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      - name: Debug - Print selected env vars
+      - name: Debug - Print config.env values
         run: |
-          echo "FULL_RELOAD_PACKAGES=${{ env.FULL_RELOAD_PACKAGES }}"
-          echo "BASE_PACKAGE_CSV=${{ env.BASE_PACKAGE_CSV }}"
-          echo "REQUIREMENTS_FILE=${{ env.REQUIREMENTS_FILE }}"
+          echo "FULL_RELOAD_PACKAGES=$(grep FULL_RELOAD_PACKAGES .env | cut -d '=' -f2)"
+          echo "BASE_PACKAGE_CSV=$(grep BASE_PACKAGE_CSV .env | cut -d '=' -f2)"
+          echo "REQUIREMENTS_FILE=$(grep REQUIREMENTS_FILE .env | cut -d '=' -f2)"
 
       - name: Run weekly report script
         run: python GenerateWeeklyReport.py
