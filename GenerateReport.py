@@ -43,6 +43,7 @@ from utils.SGTUtils import (
     SGTFormatter,
     now_sg
 )
+from utils.UpgradeInstruction import generate_upgrade_instruction
 
 # ---------------- Configuration ----------------
 # Load environment variables from .env file
@@ -145,7 +146,9 @@ def main() -> None:
 
         deps = info.get('info', {}).get('requires_dist') or []
 
-        suggested = suggest_safe_minor_upgrade(pkg, all_vs, cur_ver)
+        suggested = asyncio.run(
+            suggest_safe_minor_upgrade(pkg, cur_ver, all_vs)
+        )
 
         # run both current + upgrade checks in parallel
         (cv_ver, cv_status, cv_details), upgrade_vuln_map = asyncio.run(
@@ -161,6 +164,12 @@ def main() -> None:
         # Get custodian
         custodian, _ = custodian_map.get(pkg.lower(), ("Unknown", "Dependency Package"))
 
+        # Get Upgrade Instruction
+        if suggested in ("unknown", "Up-to-date"):
+            instruction = {"base_package": f"{pkg}=={version}", "dependencies": []}
+        else:
+            instruction = generate_upgrade_instruction(pkg, suggested)
+
         rows.append({
             'Package Name': pkg,
             'Package Type': 'Base Package' if pkg.lower() in base_packages else 'Dependency Package',
@@ -172,6 +181,7 @@ def main() -> None:
             'Dependencies for Latest': '; '.join(deps),
             'Latest Version': latest,
             'Suggested Upgrade': suggested,
+            'Upgrade Instruction': instruction,
             'Current Version Vulnerable?': cv_status,
             'Current Version Vulnerability Details': cv_details,
             'Upgrade Version Vulnerable?': upgrade_vuln,
