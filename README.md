@@ -43,10 +43,11 @@ Need to pip install packages from `requirements.txt`
 
 `GenerateWeeklyReport` will read .env file that stores some basic configs:
 
-1. `FULL_RELOAD_PACKAGES=False`: it controls whether the workflow will trigger the `CheckDependency.py`, by right we should not change this flag to `True` unless we add some packages into `requirements_full_load.txt`
-2. `BASE_PACKAGE_CSV=BasePackageWithDependencies.csv`: it states the base package list, regarding to step 1 above, you can change to other csv files if you already have the base package list
-3. `CHECK_DEPENDENCY_SCRIPT=CheckDependency.py`: it stats the script name of checking dependencies
-4. `REQUIREMENTS_FILE=requirements_full_list.txt`: it stats the txt file that contains all packages and versions you need to include in the report
-5. `PIP_AUDIT_CMD=pip-audit --format json`: it stats the pip audit command, you can change the command using other packages to scan, just need to ensure the output format is json
-6. `PYPI_URL_TEMPLATE=https://pypi.org/pypi/{package}/json`: it stats the website that fetch upgradeable versions, you can change to other website, just need to ensure the output format is json
-7. `SEMAPHORE_NUMBER=3`: it controls the semaphore number when fetching data from pypi, high semahore number may cause anti-flood from pypi
+1. `FULL_RELOAD_PACKAGES=False`: it controls whether the workflow will trigger the `CheckDependency.py`, by right we should not change this flag to `True` unless we add some packages into `requirements_full_load.txt`.
+2. `BASE_PACKAGE_TXT=base_package_list.txt`: it states the base package list, regarding to step 1 above, you can change to other txt files if you already have the base package list. You can either choose to upload/generate a txt or csv file.
+3. `BASE_PACKAGE_CSV=BasePackageWithDependencies.csv`: it states the base package list, regarding to step 1 above, you can change to other csv files if you already have the base package list. You can either choose to upload/generate a txt or csv file.
+4. `CHECK_DEPENDENCY_SCRIPT=CheckDependency.py`: it stats the script name of checking dependencies.
+5. `REQUIREMENTS_FILE=requirements_full_list.txt`: it stats the txt file that contains all packages and versions you need to include in the report.
+6. `PIP_AUDIT_CMD=pip-audit --format json`: it stats the pip audit command, you can change the command using other packages to scan, just need to ensure the output format is json.
+7. `PYPI_URL_TEMPLATE=https://pypi.org/pypi/{package}/json`: it stats the website that fetch upgradeable versions, you can change to other website, just need to ensure the output format is json.
+8. `SEMAPHORE_NUMBER=3`: it controls the semaphore number when fetching data from pypi, high semahore number may cause anti-flood from pypi.
