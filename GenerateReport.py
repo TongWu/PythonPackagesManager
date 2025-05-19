@@ -25,6 +25,7 @@ import time
 from dotenv import load_dotenv
 import shlex
 import subprocess
+import base64
 
 # ---------------- Configuration ----------------
 # Constants (Moved to .env)
@@ -36,7 +37,7 @@ import subprocess
 # PIP_AUDIT_CMD = ['pip-audit', '--format', 'json']
 # PYPI_URL_TEMPLATE = 'https://pypi.org/pypi/{package}/json'
 # BASE_PACKAGE_LIST = 'base_package_list.txt'
-# semaphore_number = 3
+# SEMAPHORE_NUMBER = 3
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=".env")
@@ -48,7 +49,7 @@ CHECK_DEPENDENCY_SCRIPT = os.getenv("CHECK_DEPENDENCY_SCRIPT", "CheckDependency.
 REQUIREMENTS_FILE = os.getenv("REQUIREMENTS_FILE", "requirements_full_list.txt")
 PIP_AUDIT_CMD = shlex.split(os.getenv("PIP_AUDIT_CMD", "pip-audit --format json"))
 PYPI_URL_TEMPLATE = os.getenv("PYPI_URL_TEMPLATE", "https://pypi.org/pypi/{package}/json")
-semaphore_number = int(os.getenv("SEMAPHORE_NUMBER", 3))
+SEMAPHORE_NUMBER = int(os.getenv("SEMAPHORE_NUMBER", 3))
 failed_versions = []
 
 # Timezone support for UTC+8 (Singapore)
@@ -103,6 +104,26 @@ logger.propagate = False  # Avoid duplicate logs from root logger
 # logger = logging.getLogger(__name__)
 
 # ---------------- Utility Functions ----------------
+def decode_base64_env(var_name: str, default: str = "Unknown") -> str:
+    """
+    Decode a base64-encoded environment variable into a UTF-8 string.
+
+    Args:
+        var_name (str): The name of the environment variable to decode.
+        default (str): Fallback value if decoding fails or variable not found.
+
+    Returns:
+        str: Decoded string value, or fallback default if not available or decoding fails.
+    """
+    val = os.getenv(var_name)
+    if not val:
+        return default
+
+    try:
+        return base64.b64decode(val).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decode base64 environment variable '{var_name}': {e}")
+        return default
 
 def get_report_paths() -> dict:
     """
@@ -126,23 +147,82 @@ def get_report_paths() -> dict:
         "failed": os.path.join(output_dir, f"FailedVersions_{timestamp_sg}.txt")
     }
 
-def run_py(script_path: str):
+def load_custodian_map(path: str = "custodian.csv") -> dict:
     """
-    Run a Python script and stream its stdout/stderr line-by-line with timestamped logs.
+    Load custodian information from a CSV file.
+
+    Args:
+        path (str): Path to the custodian.csv file.
+
+    Returns:
+        dict: Mapping of package_name.lower() -> (custodian, package_type)
+    """
+    mapping = {}
+    try:
+        with open(path, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                pkg = row.get("package name", "").strip().lower()
+                custodian = row.get("custodian", "").strip()
+                pkg_type = row.get("package type", "").strip()
+                if pkg:
+                    mapping[pkg] = (custodian, pkg_type)
+    except Exception as e:
+        logger.error(f"Failed to load custodian map: {e}")
+    return mapping
+
+def custom_sort_key(row: dict, custom_order: dict) -> tuple:
+    """
+    Generate a composite sorting key for a package report row based on custodian and package type.
+
+    Sorting priority:
+        1. Custodian rank (based on external custom order mapping)
+        2. Package type: 'Base Package' comes before 'Dependency Package'
+        3. Package name in case-insensitive alphabetical order
+
+    Args:
+        row (dict): A dictionary representing a single row in the report.
+        custom_order (dict): Mapping from custodian name to sort rank (e.g. {"Org1": 0, "Org2": 1}).
+
+    Returns:
+        tuple: Sorting key as (custodian_rank, package_type_rank, package_name_lower)
+    """
+    custodian = row.get("Custodian", "")
+    custodian_rank = custom_order.get(custodian, len(custom_order))
+
+    type_order = {"Base Package": 0, "Dependency Package": 1}
+    pkg_type = row.get("Package Type", "")
+    pkg_type_rank = type_order.get(pkg_type, 2)
+
+    pkg_name = row.get("Package Name", "").lower()
+
+    return (custodian_rank, pkg_type_rank, pkg_name)
+
+def run_py(script_path: str) -> None:
+    """
+    Execute an external Python script and stream its output in real-time.
+
+    The function runs a Python script as a subprocess, captures stdout and stderr,
+    and logs each output line with timestamp using the configured logger.
+
+    Args:
+        script_path (str): Path to the Python script to execute.
+
+    Returns:
+        None
     """
     logger.info(f"Running {script_path}...")
     start_time = time.time()
 
-    process = subprocess.Popen(
-        ["python3", script_path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1  # line-buffered
-    )
-
     try:
-        # Stream output line-by-line
+        process = subprocess.Popen(
+            ["python3", script_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1  # line-buffered
+        )
+
         assert process.stdout is not None
         for line in process.stdout:
             logger.info(f"[{script_path}] {line.rstrip()}")
@@ -335,17 +415,34 @@ async def check_cv_uv(pkg: str, cur_ver: str, newer: list, smp_num: int):
         upgrade_task = check_multiple_versions(pkg, newer, smp_num, session=session, shared_sem=sem)
         return await asyncio.gather(current_task, upgrade_task)
 
-async def check_multiple_versions(package: str, versions: list, smp_num: int,
-                                   session: aiohttp.ClientSession = None,
-                                   shared_sem: asyncio.Semaphore = None) -> dict:
+async def check_multiple_versions(
+    package: str,
+    versions: list,
+    smp_num: int,
+    session: aiohttp.ClientSession = None,
+    shared_sem: asyncio.Semaphore = None
+) -> dict:
     """
-    Launch async OSV checks for multiple versions concurrently.
+    Perform asynchronous OSV vulnerability checks on multiple versions of a package.
+
+    Args:
+        package (str): Package name to check.
+        versions (list): List of version strings to scan.
+        smp_num (int): Maximum concurrency allowed for scanning.
+        session (aiohttp.ClientSession, optional): Shared aiohttp session. Will create a new one if not provided.
+        shared_sem (asyncio.Semaphore, optional): Shared semaphore to control concurrency. Will create a new one if not provided.
+
+    Returns:
+        dict: Mapping from version string to (vulnerable_flag, details) tuple.
+              Example: {"1.2.3": ("Yes", "CVE-2022-xxxx ..."), "1.2.4": ("No", "")}
     """
     results = {}
     sem = shared_sem or asyncio.Semaphore(smp_num)
     owns_session = session is None
+
     if owns_session:
         session = aiohttp.ClientSession()
+
     try:
         tasks = [fetch_osv(session, package, v, sem) for v in versions]
         for coro in asyncio.as_completed(tasks):
@@ -354,6 +451,7 @@ async def check_multiple_versions(package: str, versions: list, smp_num: int,
     finally:
         if owns_session:
             await session.close()
+
     return results
 
 async def fetch_osv(session: aiohttp.ClientSession, package: str, ver: str,
@@ -463,6 +561,14 @@ def main() -> None:
 
     rows = []
 
+    # Load Custodian Mapping
+    CUSTODIAN_MAP = {
+    "1": decode_base64_env("CUSTODIAN_1"),
+    "2": decode_base64_env("CUSTODIAN_2")
+    }
+    custodian_ordering = {v: i for i, v in enumerate(CUSTODIAN_MAP.values())}
+    custodian_map = load_custodian_map()
+
     for idx, (pkg, cur_ver) in enumerate(pkgs.items(), 1):
         logger.info(f"[{idx}/{len(pkgs)}] Processing package: {pkg}, current version: {cur_ver}")
 
@@ -506,7 +612,7 @@ def main() -> None:
 
         # run both current + upgrade checks in parallel
         (cv_ver, cv_status, cv_details), upgrade_vuln_map = asyncio.run(
-            check_cv_uv(pkg, cur_ver, newer, semaphore_number)
+            check_cv_uv(pkg, cur_ver, newer, SEMAPHORE_NUMBER)
         )
 
         # aggregate
@@ -515,9 +621,13 @@ def main() -> None:
             f"{ver}: {details}" for ver, (flag, details) in upgrade_vuln_map.items() if flag == 'Yes'
         ) or 'None'
 
+        # Get custodian
+        custodian, _ = custodian_map.get(pkg.lower(), ("Unknown", "Dependency Package"))
+
         rows.append({
             'Package Name': pkg,
             'Package Type': 'Base Package' if pkg.lower() in base_packages else 'Dependency Package',
+            'Custodian': custodian,
             'Current Version': cur_ver,
             'Dependencies for Current': '; '.join(cur_ver_deps),
             # 'All Available Versions': ', '.join(all_vs),
@@ -530,6 +640,9 @@ def main() -> None:
             'Upgrade Version Vulnerable?': upgrade_vuln,
             'Upgrade Vulnerability Details': upgrade_vuln_details
         })
+
+    # Sort output with specific order
+    rows.sort(key=custom_sort_key, custom_order=custodian_ordering)
 
     # write output
     fieldnames = list(rows[0].keys()) if rows else []
