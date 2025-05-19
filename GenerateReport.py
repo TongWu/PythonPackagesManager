@@ -7,7 +7,6 @@ Scans for known vulnerabilities using pip-audit and OSV, gathers PyPI metadata,
 and outputs detailed weekly reports in CSV, HTML, and JSON formats.
 """
 
-import subprocess
 import json
 import requests
 import csv
@@ -28,17 +27,6 @@ import subprocess
 import base64
 
 # ---------------- Configuration ----------------
-# Constants (Moved to .env)
-# FULL_RELOAD_PACKAGES = False
-# BASE_PACKAGE_TXT = 'base_package_list.txt'
-# BASE_PACKAGE_CSV = 'BasePackageWithDependencies.csv'
-# CHECK_DEPENDENCY_SCRIPT = 'CheckDependency.py'
-# REQUIREMENTS_FILE = 'requirements_full_list.txt'
-# PIP_AUDIT_CMD = ['pip-audit', '--format', 'json']
-# PYPI_URL_TEMPLATE = 'https://pypi.org/pypi/{package}/json'
-# BASE_PACKAGE_LIST = 'base_package_list.txt'
-# SEMAPHORE_NUMBER = 3
-
 # Load environment variables from .env file
 load_dotenv(dotenv_path=".env")
 
@@ -95,14 +83,6 @@ formatter = SGTFormatter(fmt='%(asctime)s [%(levelname)s] %(message)s', datefmt=
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.propagate = False  # Avoid duplicate logs from root logger
-
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s [%(levelname)s] %(message)s',
-#     datefmt='%H:%M:%S'
-# )
-# logger = logging.getLogger(__name__)
-
 # ---------------- Utility Functions ----------------
 def decode_base64_env(var_name: str, default: str = "Unknown") -> str:
     """
@@ -642,7 +622,7 @@ def main() -> None:
         })
 
     # Sort output with specific order
-    rows.sort(key=custom_sort_key, custom_order=custodian_ordering)
+    rows.sort(key=lambda row: custom_sort_key(row, custodian_ordering))
 
     # write output
     fieldnames = list(rows[0].keys()) if rows else []
@@ -688,7 +668,7 @@ def main() -> None:
         try:
             with open(OUTPUT_FAILED, 'w') as f:
                 f.write('\n'.join(failed_versions))
-            logger.warning(f"⚠️ {len(failed_versions)} package versions failed vulnerability check. Saved to failed_versions.txt")
+            logger.warning(f"⚠️ {len(failed_versions)} package versions failed vulnerability check. Saved to {OUTPUT_FAILED}.txt")
         except Exception as e:
             print(f"❌ Failed to write failed packages list: {e}")
     
