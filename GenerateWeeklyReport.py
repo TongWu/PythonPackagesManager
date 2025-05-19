@@ -48,7 +48,6 @@ CHECK_DEPENDENCY_SCRIPT = os.getenv("CHECK_DEPENDENCY_SCRIPT", "CheckDependency.
 REQUIREMENTS_FILE = os.getenv("REQUIREMENTS_FILE", "requirements_full_list.txt")
 PIP_AUDIT_CMD = shlex.split(os.getenv("PIP_AUDIT_CMD", "pip-audit --format json"))
 PYPI_URL_TEMPLATE = os.getenv("PYPI_URL_TEMPLATE", "https://pypi.org/pypi/{package}/json")
-BASE_PACKAGE_LIST = os.getenv("BASE_PACKAGE_LIST", "base_package_list.txt")
 semaphore_number = int(os.getenv("SEMAPHORE_NUMBER", 3))
 failed_versions = []
 
