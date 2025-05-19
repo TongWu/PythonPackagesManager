@@ -1,1 +1,39 @@
-# mend_can_template
+# Python Package Manager
+
+## Overview
+
+This repo is a self-usage python package manager to achieve some necessary function when do package management.
+
+1. Filter out **base packages** from requirement package list, and generate human-readable csv format dependency tree for base packages.
+2. Generate weekly report (created an action which triggered every 8 AM on Monday) which contains following information for all packages:
+   1. Current version of package
+   2. Type of package (base package or dependency package)
+   3. All upgradable version of package
+   4. Suggested version to upgrade to of a package
+   5. Dependencies of current version
+   6. Dependencies of newest version
+   7. Vulnerabilities of current version
+   8. Vulnerabilities of all upgradable version
+
+## Usage
+
+### Before run scripts
+
+Need to pip install packages from `requirements.txt`
+
+### Generate dependency tree for base packages
+
+1. You will need to maintain a txt file called `requirements_full_list.txt`, which includes all packages that you freezed from your project (with version and all dependencies)
+2. Run the script `CheckDependency.py`, it will:
+  1. pip install all packages in `requirements_full_list.txt` (if installment failed, the script will skip those packages)
+  2. use pipdeptree to output json format dependency tree
+  3. extract base packages and its dependencies from json to `BasePackageWithDependencies.csv`
+
+### Generate upgrade and vulnerabilities report for all packages
+
+1. To let script tag base package or dependency package, you will need to run `CheckDependency.py` as the instruction above
+2. Run the script `GenerateWeeklyReport.py`, it will:
+  1. Fetch packages list in `requirements_full_list.txt` (no need to pip install packages) and `BasePackageWithDependencies.csv` to tag base/dependency package
+  2. Run pip audit to fetch upgradeable versions.
+  3. Scan vulnerabilities via osv for current version and upgradeable versions
+  4. Generate report in csv, html and json format
