@@ -10,7 +10,7 @@ import logging
 from logging import StreamHandler, Formatter
 from packaging.requirements import Requirement
 from utils.PyPiUtils import GetPyPiInfo
-from utils.VersionSuggester import suggest_safe_minor_upgrade
+from utils.VersionSuggester import suggest_safe_minor_upgrade, get_all_versions
 from utils.VulnChecker import fetch_osv
 from packaging.version import Version, InvalidVersion
 from packaging.specifiers import SpecifierSet
@@ -71,50 +71,69 @@ def _extract_min_version(req: Requirement) -> str | None:
 
     return min_version
 
-async def get_safe_dependency_versions(dependencies: list[str]) -> dict:
+async def _latest_safe_version(pkg: str,
+                               all_versions: list[str],
+                               session: aiohttp.ClientSession,
+                               sem: asyncio.Semaphore) -> str | None:
     """
-    For a list of dependency requirement strings, find the highest safe (non-vulnerable) version.
+    Return the newest (highest) version that has **no** known vulnerabilities.
+    If every version is vulnerable (or an error occurs), return None.
     """
-    esults = {}
+    from packaging.version import Version
+
+    # newest → oldest
+    for ver in sorted(all_versions, key=Version, reverse=True):
+        try:
+            _, status, _ = await fetch_osv(session, pkg, ver, sem)
+            if status == "No":
+                return ver
+        except Exception:
+            # network / API hiccup – try older versions
+            continue
+    return None
+
+
+async def get_safe_dependency_versions(dependencies: list[str]) -> dict[str, str | None]:
+    """
+    For each dependency requirement, return a safe (non-vulnerable) version.
+    Keys are package names; values are version strings or None.
+    """
+    results: dict[str, str | None] = {}
+
     async with aiohttp.ClientSession() as session:
-        sem = asyncio.Semaphore(5)
-        fetch_tasks, req_objs = [], []
+        sem = asyncio.Semaphore(10)
+        tasks = []
 
         for dep in dependencies:
             try:
                 req = Requirement(dep)
-                req_objs.append(req)
-                # 抓取全部版本列表
-                fetch_tasks.append(fetch_osv(session, req.name, None, sem))
-            except Exception as e:
-                logger.warning(f"Failed to parse dependency: {dep}: {e}")
+                name = req.name
+                all_versions = get_all_versions(name)
+                min_ver = _extract_min_version(req)
 
-        fetched_versions = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-
-        # -------- 这里改动：await 协程 --------
-        coroutines = []
-        for req, all_versions in zip(req_objs, fetched_versions):
-            min_ver = _extract_min_version(req)   # 你已有的那段逻辑，独立成私有函数更清爽
-            if min_ver:
-                coroutines.append(
-                    suggest_safe_minor_upgrade(
-                        pkg=req.name,
+                # decide which strategy to use
+                if min_ver:
+                    task = suggest_safe_minor_upgrade(
+                        pkg=name,
                         current_version=min_ver,
                         all_versions=all_versions,
                     )
-                )
-            else:
-                coroutines.append(asyncio.sleep(0, result=None))  # 占位
+                else:
+                    task = _latest_safe_version(name, all_versions, session, sem)
 
-        safe_versions = await asyncio.gather(*coroutines, return_exceptions=True)
-        # -------------------------------------
+                tasks.append(task)
+                results[name] = None        # placeholder
+            except Exception as e:
+                logger.warning(f"Failed to schedule version check for {dep}: {e}")
 
-        for req, safe in zip(req_objs, safe_versions):
-            # 把异常或 Up-to-date 情况都处理掉，保证返回纯字符串或 None
-            if isinstance(safe, Exception):
-                logger.warning(f"Failed to get safe version for {req.name}: {safe}")
+        safe_versions = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # fill in real values
+        for (pkg_name, safe) in zip(results.keys(), safe_versions):
+            if isinstance(safe, Exception) or safe in (None, "Up-to-date"):
                 continue
-            results[req.name] = None if safe in (None, "Up-to-date") else safe
+            results[pkg_name] = safe
+
     return results
 
 def generate_upgrade_instruction(base_package: str, target_version: str) -> dict:
