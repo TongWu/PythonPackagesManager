@@ -4,7 +4,8 @@
 """
 Suggest upgrade versions for a Python package.
 """
-
+import aiohttp
+import asyncio
 import utils
 from packaging import version
 import requests
@@ -14,6 +15,7 @@ from packaging.version import InvalidVersion
 from logging import StreamHandler, Formatter
 from datetime import datetime
 from utils.SGTUtils import SGTFormatter
+from utils.VulnChecker import fetch_osv
 # Custom formatter (assumes SGTFormatter is defined elsewhere or should be implemented here)
 try:
     from zoneinfo import ZoneInfo  # Python 3.9+
@@ -81,24 +83,46 @@ def suggest_upgrade_version(all_versions: list, current_version: str) -> str:
         logger.error(f"Suggest upgrade error for {current_version}: {e}")
         return 'unknown'
 
-def suggest_safe_minor_upgrade(all_vs: list, cur_ver: str) -> str:
+async def suggest_safe_minor_upgrade(pkg: str, current_version: str, all_versions: list) -> str:
     """
-    Suggest highest non-major-upgrade version without vulnerabilities.
+    Suggest the highest minor upgrade version that is not vulnerable.
+
+    Args:
+        pkg (str): Package name
+        current_version (str): Current installed version
+        all_versions (list): All available versions (str)
+
+    Returns:
+        str: Safe upgrade version or 'Up-to-date' or 'unknown'
     """
-    cur = version.parse(cur_ver)
-    candidates = []
-    for v_str in all_vs:
-        try:
-            v = version.parse(v_str)
-        except InvalidVersion:
-            continue
-        if v.major == cur.major and v > cur:
-            flag, _ = check_vulnerability(pkg_name, v_str)
-            if flag == 'No':
-                candidates.append(v)
-    if not candidates:
-        return "No safe minor upgrade"
-    return str(sorted(candidates)[-1])
+    try:
+        cur_ver = version.parse(current_version)
+        minor_safe_versions = []
+
+        for v in all_versions:
+            try:
+                pv = version.parse(v)
+                if pv.major == cur_ver.major and pv >= cur_ver:
+                    minor_safe_versions.append((pv, v))  # tuple of (parsed, raw)
+            except InvalidVersion:
+                continue
+
+        # Sort in descending order to get latest first
+        minor_safe_versions.sort(reverse=True, key=lambda x: x[0])
+
+        sem = asyncio.Semaphore(5)
+        async with aiohttp.ClientSession() as session:
+            for _, ver_str in minor_safe_versions:
+                vuln_result, _ = await fetch_osv(session, pkg, ver_str, sem)
+                if not vuln_result:  # No vulnerabilities
+                    return ver_str
+
+        return "Up-to-date"
+
+    except Exception as e:
+        logger.warning(f"Error in suggest_safe_minor_upgrade: {e}")
+        return "unknown"
+
 
 def main():
     parser = argparse.ArgumentParser(description="Suggest upgrade versions")
@@ -112,7 +136,7 @@ def main():
     pkg_name = args.package  # used in suggest_safe_minor_upgrade
 
     versions = get_all_versions(pkg_name)
-    basic = suggest_upgrade_version(versions, args.current)
+    basic = suggest_upgrade_version(pkg, versions, args.current)
     print(f"Suggested upgrade: {basic}")
 
     if args.safe_minor:

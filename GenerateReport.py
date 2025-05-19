@@ -34,7 +34,7 @@ from utils.PyPiUtils import (
     GetPyPiInfo
 )
 from utils.VersionSuggester import (
-    suggest_upgrade_version
+    suggest_safe_minor_upgrade
 )
 from utils.VulnChecker import (
     check_cv_uv
@@ -145,7 +145,7 @@ def main() -> None:
 
         deps = info.get('info', {}).get('requires_dist') or []
 
-        suggested = suggest_upgrade_version(all_vs, cur_ver)
+        suggested = suggest_safe_minor_upgrade(pkg, all_vs, cur_ver)
 
         # run both current + upgrade checks in parallel
         (cv_ver, cv_status, cv_details), upgrade_vuln_map = asyncio.run(
