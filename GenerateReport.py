@@ -7,6 +7,7 @@ Scans for known vulnerabilities using pip-audit and OSV, gathers PyPI metadata,
 and outputs detailed weekly reports in CSV, HTML, and JSON formats.
 """
 import os
+import sys
 import csv
 import json
 import logging
@@ -274,4 +275,8 @@ def main() -> None:
     logger.info(f"   • Dependency packages: {dep_vuln} / {dep_count}")
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n❌ Execution interrupted by user.")
+        sys.exit(1)
