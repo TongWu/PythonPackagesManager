@@ -42,7 +42,7 @@ jobs:
           echo "REQUIREMENTS_FILE=$(grep REQUIREMENTS_FILE .env | cut -d '=' -f2)"
 
       - name: Run weekly report script
-        run: python GenerateWeeklyReport.py
+        run: python GenerateReport.py
 
       - name: DEBUG - Show changed files
         run: |
