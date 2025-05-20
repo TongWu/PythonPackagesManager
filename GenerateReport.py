@@ -197,12 +197,12 @@ def main() -> None:
             'Newer Versions': ', '.join(newer),
             'Dependencies for Latest': '; '.join(deps),
             'Latest Version': latest,
-            'Suggested Upgrade': suggested,
-            'Upgrade Instruction': instruction,
             'Current Version Vulnerable?': cv_status,
             'Current Version Vulnerability Details': cv_details,
             'Upgrade Version Vulnerable?': upgrade_vuln,
-            'Upgrade Vulnerability Details': upgrade_vuln_details
+            'Upgrade Vulnerability Details': upgrade_vuln_details,
+            'Suggested Upgrade': suggested,
+            'Upgrade Instruction': instruction
         })
         logger.debug(f"Custodian for {pkg}: {custodian}")
         logger.debug(f"Current Version for {pkg}: {cur_ver}")
