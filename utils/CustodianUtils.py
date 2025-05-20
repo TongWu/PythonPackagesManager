@@ -56,9 +56,9 @@ def load_custodian_map(path: str = "custodian.csv") -> dict:
         with open(path, newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                pkg = row.get("package name", "").strip().lower()
-                custodian = row.get("custodian", "").strip()
-                pkg_type = row.get("package type", "").strip()
+                pkg = row.get("Package Name", "").strip().lower()
+                custodian = row.get("Custodian", "").strip()
+                pkg_type = row.get("Package Type", "").strip()
                 if pkg:
                     mapping[pkg] = (custodian, pkg_type)
     except Exception as e:

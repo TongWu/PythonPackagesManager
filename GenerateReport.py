@@ -105,7 +105,15 @@ def main() -> None:
     "2": decode_base64_env("CUSTODIAN_2")
     }
     custodian_ordering = {v: i for i, v in enumerate(CUSTODIAN_MAP.values())}
-    custodian_map = load_custodian_map()
+    raw_custodian_map = load_custodian_map()
+    logger.debug(f"Raw Custodian Map Output: \n {raw_custodian_map}")
+
+    # Remap raw_custodian_map to decoded mapping
+    custodian_map = {}
+    for pkg_name, (cust_id, pkg_type) in raw_custodian_map.items():
+        decoded = CUSTODIAN_MAP.get(str(cust_id), cust_id)
+        custodian_map[pkg_name.lower()] = (decoded, pkg_type)
+    logger.debug(f"Decoded Custodian Map Output: \n {custodian_map}")
 
     for idx, (pkg, cur_ver) in enumerate(pkgs.items(), 1):
         logger.info(f"[{idx}/{len(pkgs)}] Processing package: {pkg}, current version: {cur_ver}")
