@@ -86,6 +86,7 @@ def load_base_packages() -> set:
                     if base_pkg:
                         base_set.add(base_pkg.lower())
             logger.info(f"Loaded {len(base_set)} base packages from {BASE_PACKAGE_CSV}")
+            logger.debug(f"Base package list: \n {base_set}")
         else:
             with open(BASE_PACKAGE_TXT, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -93,6 +94,7 @@ def load_base_packages() -> set:
                     if line:
                         base_set.add(line.lower())
             logger.info(f"Loaded {len(base_set)} base packages from {BASE_PACKAGE_TXT}")
+            logger.debug(f"Base package list: \n {base_set}")
     except Exception as e:
         logger.warning(f"Failed to load base package list: {e}")
     return base_set

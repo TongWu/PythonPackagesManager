@@ -83,21 +83,23 @@ def main() -> None:
     report_dir = get_report_output_folder()
 
     OUTPUT_CSV = paths["csv"]
+    logger.debug(f"CSV Path: {OUTPUT_CSV}")
     OUTPUT_HTML = paths["html"]
+    logger.debug(f"HTML Path: {OUTPUT_HTML}")
     OUTPUT_JSON = paths["json"]
+    logger.debug(f"JSON Path: {OUTPUT_JSON}")
     OUTPUT_FAILED = paths["failed"]
-
-    # Load base package list
-    base_packages = load_base_packages()
+    logger.debug(f"Failed Package Path: {OUTPUT_FAILED}")
 
     parser = argparse.ArgumentParser(description="Dependency vulnerability scanner")
     parser.add_argument('--output', nargs='+', choices=['csv', 'html', 'json', 'all'], default=['all'],
                         help="Choose one or more output formats (e.g. --output csv html)")
     args = parser.parse_args()
 
+    # Load package list need to processed
     pkgs = parse_requirements(REQUIREMENTS_FILE)
-
-    rows = []
+    # Load base package list
+    base_packages = load_base_packages()
 
     # Load Custodian Mapping
     CUSTODIAN_MAP = {
@@ -115,13 +117,17 @@ def main() -> None:
         custodian_map[pkg_name.lower()] = (decoded, pkg_type)
     logger.debug(f"Decoded Custodian Map Output: \n {custodian_map}")
 
+    # Initialize final output row
+    rows = []
     for idx, (pkg, cur_ver) in enumerate(pkgs.items(), 1):
         logger.info(f"[{idx}/{len(pkgs)}] Processing package: {pkg}, current version: {cur_ver}")
 
         info = GetPyPiInfo(pkg)
+        logger.debug(f"Info detail: \n{info}")
         if info:
             # Filter out invalid versions before sorting
             raw_versions = info.get('releases', {}).keys()
+            logger.debug(f"Raw versions: \n{raw_versions}")
             valid_versions = []
             for v in raw_versions:
                 try:
@@ -134,9 +140,11 @@ def main() -> None:
 
             cur_ver_deps = []
             release_info = info.get('releases', {}).get(cur_ver, [])
+            logger.debug(f"Release info: \n{release_info}")
             if release_info:
                 for entry in release_info:
                     if 'requires_dist' in entry:
+                        logger.debug(f"requires_dist: \n{requires_dist}")
                         cur_ver_deps.extend(entry['requires_dist'])
                         break
             if not cur_ver_deps:
@@ -195,6 +203,10 @@ def main() -> None:
             'Upgrade Version Vulnerable?': upgrade_vuln,
             'Upgrade Vulnerability Details': upgrade_vuln_details
         })
+        logger.debug(f"Custodian for {pkg}: {custodian}")
+        logger.debug(f"Current Version for {pkg}: {cur_ver}")
+        logger.debug(f"Suggested Version for {pkg}: {suggested}")
+        logger.debug(f"Current Version vulnerable for {pkg}: {cv_status}")
 
     # Sort output with specific order
     rows.sort(key=lambda row: custom_sort_key(row, custodian_ordering))
