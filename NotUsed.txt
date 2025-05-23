@@ -1,0 +1,14 @@
+langchain-community
+mlflow
+unstructured
+idna
+strawberry-graphql
+lightgbm
+opencv-python
+keras
+llama-index
+py
+setuptools
+torch
+transformers
+Werkzeug
