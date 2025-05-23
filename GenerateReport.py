@@ -97,6 +97,15 @@ def main() -> None:
                         help="Choose one or more output formats (e.g. --output csv html)")
     args = parser.parse_args()
 
+    # Read NotUsed.txt
+    try:
+        with open("./src/NotUsed.txt", "r") as f:
+            NotUsedPackages = set(line.strip().lower() for line in f if line.strip())
+        logger.info(f"Loaded {len(NotUsedPackages)} packages from NotUsed.txt")
+    except FileNotFoundError:
+        logger.warning("NotUsed.txt not found.")
+        NotUsedPackages = set()
+
     # Load package list need to processed
     pkgs = parse_requirements(REQUIREMENTS_FILE)
     # Load base package list
@@ -187,6 +196,9 @@ def main() -> None:
         else:
             instruction = generate_upgrade_instruction(pkg, suggested)
 
+        # Mark for Not Used Packages
+        Remarks = "Not Used" if pkg.lower() in NotUsedPackages else ""
+
         rows.append({
             'Package Name': pkg,
             'Package Type': 'Base Package' if pkg.lower() in base_packages else 'Dependency Package',
@@ -202,7 +214,8 @@ def main() -> None:
             'Upgrade Version Vulnerable?': upgrade_vuln,
             'Upgrade Vulnerability Details': upgrade_vuln_details,
             'Suggested Upgrade': suggested,
-            'Upgrade Instruction': instruction
+            'Upgrade Instruction': instruction,
+            'Remarks': Remarks
         })
         logger.debug(f"Custodian for {pkg}: {custodian}")
         logger.debug(f"Current Version for {pkg}: {cur_ver}")
