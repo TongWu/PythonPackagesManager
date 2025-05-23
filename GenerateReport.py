@@ -55,6 +55,7 @@ BASE_PACKAGE_TXT = os.getenv("BASE_PACKAGE_TXT", "src/base_package_list.txt")
 BASE_PACKAGE_CSV = os.getenv("BASE_PACKAGE_CSV", "src/BasePackageWithDependencies.csv")
 CHECK_DEPENDENCY_SCRIPT = os.getenv("CHECK_DEPENDENCY_SCRIPT", "utils/CheckDependency.py")
 REQUIREMENTS_FILE = os.getenv("REQUIREMENTS_FILE", "src/requirements_full_list.txt")
+CUSTODIAN_LIST = os.getenv("CUSTODIAN_LIST", "src/custodian.csv")
 NOTUSED_PACKAGES = os.getenv("NOTUSED_PACKAGES", "src/NotUsed.txt")
 PIP_AUDIT_CMD = shlex.split(os.getenv("PIP_AUDIT_CMD", "pip-audit --format json"))
 SEMAPHORE_NUMBER = int(os.getenv("SEMAPHORE_NUMBER", 3))
@@ -118,7 +119,7 @@ def main() -> None:
     "2": decode_base64_env("CUSTODIAN_2")
     }
     custodian_ordering = {v: i for i, v in enumerate(CUSTODIAN_MAP.values())}
-    raw_custodian_map = load_custodian_map()
+    raw_custodian_map = load_custodian_map(CUSTODIAN_LIST)
     logger.debug(f"Raw Custodian Map Output: \n {raw_custodian_map}")
 
     # Remap raw_custodian_map to decoded mapping
