@@ -1,53 +1,128 @@
 # Python Package Manager
 
-## Overview
+## Introduction
 
-This repo is a self-usage python package manager to achieve some necessary function when do package management.
+This repository provides a Python-based package management and reporting tool for self-use. It helps you manage dependencies, track vulnerabilities, and generate upgrade recommendations for your Python projects. The tool can filter out base packages, generate a dependency tree, and produce weekly reports in CSV, HTML, and JSON formats.
 
-1. Filter out **base packages** from requirement package list, and generate human-readable csv format dependency tree for base packages.
-2. Generate weekly report (created an action which triggered every 8 AM on Monday) which contains following information for all packages:
-   1. Current version of package
-   2. Type of package (base package or dependency package)
-   3. All upgradable version of package
-   4. Suggested version to upgrade to of a package
-   5. Dependencies of current version
-   6. Dependencies of newest version
-   7. Vulnerabilities of current version
-   8. Vulnerabilities of all upgradable version
+---
+
+## Function Overview
+
+- **Dependency Tree Generation:**  
+  Filter out **base packages** from your requirements and generate a human-readable CSV dependency tree for base packages.
+
+- **Weekly Report Generation:**  
+  Generate a weekly report containing:
+  - Current version of each package
+  - Package type (base or dependency)
+  - All upgradable versions
+  - Suggested upgrade version
+  - Dependencies for current and latest versions
+  - Vulnerabilities for current and all upgradable versions
+
+- **Vulnerability Scanning:**  
+  Integrates with `pip-audit` and OSV to check for known vulnerabilities in your dependencies.
+
+- **Upgrade Suggestions:**  
+  Suggests safe minor upgrades and provides upgrade instructions, including compatible dependency versions.
+
+---
 
 ## Usage
 
-### Before run scripts
+### 1. Install Dependencies
 
-Need to pip install packages from `requirements.txt`
+Install required packages from `requirements.txt`:
 
-### Generate dependency tree for base packages
+```sh
+pip install -r requirements.txt
+```
 
-1. You will need to maintain a txt file called `requirements_full_list.txt`, which includes all packages that you freezed from your project (with version and all dependencies)
-2. Run the script `CheckDependency.py`, it will:
-   1. pip install all packages in `requirements_full_list.txt` (if installment failed, the script will skip those packages)
-   2. use pipdeptree to output json format dependency tree
-   3. extract base packages and its dependencies from json to `BasePackageWithDependencies.csv`
+---
 
-### Generate upgrade and vulnerabilities report for all packages
+### 2. Generate Dependency Tree for Base Packages
 
-1. To let script tag base package or dependency package, you will need to run `CheckDependency.py` as the instruction above
-2. Modify the .env file if you want
-3. Run the script `GenerateWeeklyReport.py`, it will:
-   1. Fetch packages list in `requirements_full_list.txt` (no need to pip install packages) and `BasePackageWithDependencies.csv` to tag base/dependency package
-   2. Run pip audit to fetch upgradeable versions.
-   3. Scan vulnerabilities via osv for current version and upgradeable versions
-   4. Generate report in csv, html and json format
+1. Maintain a file `src/requirements_full_list.txt` listing all packages (with versions) you want to manage.
+2. Run the script to extract the dependency tree:
 
-### .env
+   ```sh
+   python utils/CheckDependency.py
+   ```
 
-`GenerateWeeklyReport` will read .env file that stores some basic configs:
+   This will:
+   - Install all packages from `requirements_full_list.txt` (skipping any that fail)
+   - Use `pipdeptree` to output a JSON dependency tree
+   - Extract base packages and their dependencies to `src/BasePackageWithDependencies.csv`
 
-1. `FULL_RELOAD_PACKAGES=False`: it controls whether the workflow will trigger the `CheckDependency.py`, by right we should not change this flag to `True` unless we add some packages into `requirements_full_load.txt`.
-2. `BASE_PACKAGE_TXT=base_package_list.txt`: it states the base package list, regarding to step 1 above, you can change to other txt files if you already have the base package list. You can either choose to upload/generate a txt or csv file.
-3. `BASE_PACKAGE_CSV=BasePackageWithDependencies.csv`: it states the base package list, regarding to step 1 above, you can change to other csv files if you already have the base package list. You can either choose to upload/generate a txt or csv file.
-4. `CHECK_DEPENDENCY_SCRIPT=CheckDependency.py`: it stats the script name of checking dependencies.
-5. `REQUIREMENTS_FILE=requirements_full_list.txt`: it stats the txt file that contains all packages and versions you need to include in the report.
-6. `PIP_AUDIT_CMD=pip-audit --format json`: it stats the pip audit command, you can change the command using other packages to scan, just need to ensure the output format is json.
-7. `PYPI_URL_TEMPLATE=https://pypi.org/pypi/{package}/json`: it stats the website that fetch upgradeable versions, you can change to other website, just need to ensure the output format is json.
-8. `SEMAPHORE_NUMBER=3`: it controls the semaphore number when fetching data from pypi, high semahore number may cause anti-flood from pypi.
+---
+
+### 3. Generate Upgrade and Vulnerabilities Report
+
+1. Ensure you have run `CheckDependency.py` as above to tag base and dependency packages.
+2. (Optional) Edit the `.env` file to customize paths and settings (see below).
+3. Run the report generation script:
+
+   ```sh
+   python GenerateReport.py --output all
+   ```
+
+   This will:
+   - Read package lists from `src/requirements_full_list.txt` and `src/BasePackageWithDependencies.csv`
+   - Run pip audit to fetch upgradable versions
+   - Scan vulnerabilities via OSV for current and upgradable versions
+   - Generate reports in CSV, HTML, and JSON formats in the `WeeklyReport` folder
+
+---
+
+### 4. .env File Usage
+
+The `.env` file stores configuration for the workflow. Key settings include:
+
+- `FULL_RELOAD_PACKAGES=False`: Controls whether to re-run dependency extraction. Set to `True` only if you update `requirements_full_list.txt`.
+- `BASE_PACKAGE_TXT=src/base_package_list.txt`: Path to the base package list (TXT).
+- `BASE_PACKAGE_CSV=src/BasePackageWithDependencies.csv`: Path to the base package list (CSV).
+- `CHECK_DEPENDENCY_SCRIPT=utils/CheckDependency.py`: Script for dependency extraction.
+- `REQUIREMENTS_FILE=src/requirements_full_list.txt`: Path to the full requirements file.
+- `CUSTODIAN_LIST=src/custodian.csv`: Path to the custodian mapping file.
+- `NOTUSED_PACKAGES=src/NotUsed.txt`: Path to the NotUsed packages file.
+- `PIP_AUDIT_CMD=pip-audit --format json`: Command for vulnerability scanning.
+- `PYPI_URL_TEMPLATE=https://pypi.org/pypi/{package}/json`: URL template for fetching PyPI metadata.
+- `SEMAPHORE_NUMBER=3`: Controls concurrency when fetching data from PyPI (higher values may trigger anti-flood protection).
+
+---
+
+## Output
+
+- Reports are saved in the `WeeklyReport/YYYY-MM-DD/` directory.
+- Formats: CSV, HTML, JSON.
+- Failed package versions (if any) are listed in a separate file.
+
+---
+
+## Folder Structure
+
+```
+src/
+  requirements_full_list.txt
+  base_package_list.txt
+  BasePackageWithDependencies.csv
+  NotUsed.txt
+  custodian.csv
+utils/
+  CheckDependency.py
+  ...
+templates/
+  weekly_report.html.j2
+WeeklyReport/
+  YYYY-MM-DD/
+    report.csv
+    report.html
+    report.json
+```
+
+---
+
+## Notes
+
+- The tool is intended for self-use and internal reporting.
+- You can further customize the scripts and templates as needed for your workflow.
