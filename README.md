@@ -114,7 +114,7 @@ utils/
 templates/
   weekly_report.html.j2
 WeeklyReport/
-  YYYY-MM-DD/
+  YYYY-MM-DD/ <- Folder naming is weekly based (e.g. only generate Monday's date for whole week's report folder)
     report.csv
     report.html
     report.json
