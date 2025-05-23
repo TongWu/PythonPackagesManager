@@ -35,8 +35,11 @@ logger.addHandler(handler)
 logger.propagate = False  # Avoid duplicate logs from root logger
 
 # ---------------- Logging Configuration with SGT timezone ----------------
-requirements_file = "requirements_full_list.txt"
-logger.info(f"Reading base packages from {requirements_file}")
+load_dotenv(dotenv_path=".env")
+
+REQUIREMENTS_FILE = os.getenv("REQUIREMENTS_FILE", "src/requirements_full_list.txt")
+BASE_PACKAGE_CSV = os.getenv("BASE_PACKAGE_CSV", "src/BasePackageWithDependencies.csv")
+logger.info(f"Reading base packages from {REQUIREMENTS_FILE}")
 
 # Step 1: Load base package list and save original line
 base_packages = {}
@@ -131,6 +134,6 @@ for base in pure_base_packages:
 
 # Step 8: Export to CSV
 df = pd.DataFrame(rows)
-df.to_csv("BasePackageWithDependencies.csv", index=False)
-logger.info("✅ Exported to BasePackageWithDependencies.csv")
+df.to_csv(BASE_PACKAGE_CSV, index=False)
+logger.info(f"✅ Exported to {BASE_PACKAGE_CSV}")
 # logger.info(f"\n{df}")
