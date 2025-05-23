@@ -53,7 +53,7 @@ load_dotenv(dotenv_path=".env")
 FULL_RELOAD_PACKAGES = os.getenv("FULL_RELOAD_PACKAGES", "False").lower() == "true"
 BASE_PACKAGE_TXT = os.getenv("BASE_PACKAGE_TXT", "src/base_package_list.txt")
 BASE_PACKAGE_CSV = os.getenv("BASE_PACKAGE_CSV", "src/BasePackageWithDependencies.csv")
-CHECK_DEPENDENCY_SCRIPT = os.getenv("CHECK_DEPENDENCY_SCRIPT", "src/CheckDependency.py")
+CHECK_DEPENDENCY_SCRIPT = os.getenv("CHECK_DEPENDENCY_SCRIPT", "utils/CheckDependency.py")
 REQUIREMENTS_FILE = os.getenv("REQUIREMENTS_FILE", "src/requirements_full_list.txt")
 NOTUSED_PACKAGES = os.getenv("NOTUSED_PACKAGES", "src/NotUsed.txt")
 PIP_AUDIT_CMD = shlex.split(os.getenv("PIP_AUDIT_CMD", "pip-audit --format json"))
