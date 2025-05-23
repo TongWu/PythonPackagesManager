@@ -41,7 +41,7 @@ def decode_base64_env(var_name: str, default: str = "Unknown") -> str:
         logger.warning(f"Failed to decode base64 environment variable '{var_name}': {e}")
         return default
 
-def load_custodian_map(path: str = "custodian.csv") -> dict:
+def load_custodian_map(path: str) -> dict:
     """
     Load custodian information from a CSV file.
 
